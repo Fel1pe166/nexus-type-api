@@ -7,17 +7,19 @@ function startServer(client) {
   app.use(cors());
   app.use(express.json());
 
+  // Página principal da API
   app.get("/", (req, res) => {
     res.json({
       name: "Nexus Type API",
       status: "Online",
-      version: "1.0.1",
+      version: "1.0.2",
       bot: client.isReady() ? "Connected" : "Offline",
       uptime: Math.floor(process.uptime()),
       updatedAt: new Date().toISOString()
     });
   });
 
+  // Status da API
   app.get("/api/status", (req, res) => {
     res.json({
       site: "Online",
@@ -29,6 +31,7 @@ function startServer(client) {
     });
   });
 
+  // Estatísticas do Discord
   app.get("/api/discord/stats", async (req, res) => {
     try {
       if (!client.isReady()) {
@@ -37,16 +40,22 @@ function startServer(client) {
         });
       }
 
-      const guild = client.guilds.cache.get(process.env.DISCORD_GUILD_ID);
+      // Busca o servidor usando o ID das variáveis do Render
+      const guild = client.guilds.cache.get(
+        process.env.DISCORD_GUILD_ID
+      );
 
       if (!guild) {
         return res.status(404).json({
           error: "Servidor Discord não encontrado",
-          details: "Verifique se DISCORD_GUILD_ID está correto e se o bot está no servidor."
+          envGuildId: process.env.DISCORD_GUILD_ID,
+          details:
+            "Verifique se o DISCORD_GUILD_ID está correto e se o bot está no servidor."
         });
       }
 
       res.json({
+        envGuildId: process.env.DISCORD_GUILD_ID,
         guildName: guild.name,
         guildId: guild.id,
         totalMembers: guild.memberCount,
@@ -56,7 +65,7 @@ function startServer(client) {
         lastUpdated: new Date().toISOString()
       });
     } catch (error) {
-      console.error("Erro em /api/discord/stats:", error);
+      console.error("Erro ao buscar dados do Discord:", error);
 
       res.status(500).json({
         error: "Erro ao buscar dados do Discord",
@@ -65,6 +74,7 @@ function startServer(client) {
     }
   });
 
+  // Rota não encontrada
   app.use((req, res) => {
     res.status(404).json({
       error: "Rota não encontrada",
@@ -78,7 +88,16 @@ function startServer(client) {
     console.log("=================================");
     console.log("🚀 Nexus Type API Online");
     console.log(`🌐 Porta: ${PORT}`);
-    console.log(`🤖 Bot: ${client.isReady() ? client.user.tag : "Conectando..."}`);
+    console.log(
+      `🤖 Bot: ${
+        client.isReady()
+          ? client.user.tag
+          : "Conectando..."
+      }`
+    );
+    console.log(
+      `🏠 Guild configurada: ${process.env.DISCORD_GUILD_ID}`
+    );
     console.log("=================================");
   });
 }
