@@ -1,6 +1,10 @@
 const express = require("express");
 const cors = require("cors");
 
+let statsCache = null;
+let statsCacheTime = 0;
+const CACHE_DURATION = 60 * 1000;
+
 function startServer(client) {
   const app = express();
 
@@ -30,27 +34,37 @@ function startServer(client) {
 
   app.get("/api/discord/stats", async (req, res) => {
     try {
+      const now = Date.now();
+
+      if (statsCache && now - statsCacheTime < CACHE_DURATION) {
+        return res.json(statsCache);
+      }
+
       const guild = await client.guilds.fetch(process.env.DISCORD_GUILD_ID);
-      await guild.members.fetch();
 
-      const totalMembers = guild.memberCount;
-
-      const onlineMembers = guild.members.cache.filter(member =>
-        member.presence &&
-        ["online", "idle", "dnd"].includes(member.presence.status)
-      ).size;
-
-      res.json({
+      const data = {
         guildName: guild.name,
         guildId: guild.id,
-        totalMembers,
-        onlineMembers,
+        totalMembers: guild.memberCount,
+        onlineMembers: "Unavailable",
         botStatus: client.isReady() ? "Connected" : "Offline",
         ping: `${client.ws.ping}ms`,
         lastUpdated: new Date().toISOString()
-      });
+      };
+
+      statsCache = data;
+      statsCacheTime = now;
+
+      res.json(data);
     } catch (error) {
       console.error(error);
+
+      if (statsCache) {
+        return res.json({
+          ...statsCache,
+          warning: "Dados em cache porque o Discord limitou a requisição."
+        });
+      }
 
       res.status(500).json({
         error: "Erro ao buscar dados do Discord",
