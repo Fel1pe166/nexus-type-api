@@ -1,10 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 
-let statsCache = null;
-let statsCacheTime = 0;
-const CACHE_DURATION = 60 * 1000;
-
 function startServer(client) {
   const app = express();
 
@@ -15,9 +11,10 @@ function startServer(client) {
     res.json({
       name: "Nexus Type API",
       status: "Online",
-      version: "1.0.0",
+      version: "1.0.1",
       bot: client.isReady() ? "Connected" : "Offline",
-      uptime: process.uptime()
+      uptime: Math.floor(process.uptime()),
+      updatedAt: new Date().toISOString()
     });
   });
 
@@ -34,43 +31,45 @@ function startServer(client) {
 
   app.get("/api/discord/stats", async (req, res) => {
     try {
-      const now = Date.now();
-
-      if (statsCache && now - statsCacheTime < CACHE_DURATION) {
-        return res.json(statsCache);
+      if (!client.isReady()) {
+        return res.status(503).json({
+          error: "Bot ainda está conectando ao Discord"
+        });
       }
 
-      const guild = await client.guilds.fetch(process.env.DISCORD_GUILD_ID);
+      const guild = client.guilds.cache.get(process.env.DISCORD_GUILD_ID);
 
-      const data = {
+      if (!guild) {
+        return res.status(404).json({
+          error: "Servidor Discord não encontrado",
+          details: "Verifique se DISCORD_GUILD_ID está correto e se o bot está no servidor."
+        });
+      }
+
+      res.json({
         guildName: guild.name,
         guildId: guild.id,
         totalMembers: guild.memberCount,
         onlineMembers: "Unavailable",
-        botStatus: client.isReady() ? "Connected" : "Offline",
+        botStatus: "Connected",
         ping: `${client.ws.ping}ms`,
         lastUpdated: new Date().toISOString()
-      };
-
-      statsCache = data;
-      statsCacheTime = now;
-
-      res.json(data);
+      });
     } catch (error) {
-      console.error(error);
-
-      if (statsCache) {
-        return res.json({
-          ...statsCache,
-          warning: "Dados em cache porque o Discord limitou a requisição."
-        });
-      }
+      console.error("Erro em /api/discord/stats:", error);
 
       res.status(500).json({
         error: "Erro ao buscar dados do Discord",
         details: error.message
       });
     }
+  });
+
+  app.use((req, res) => {
+    res.status(404).json({
+      error: "Rota não encontrada",
+      path: req.originalUrl
+    });
   });
 
   const PORT = process.env.PORT || 3000;
